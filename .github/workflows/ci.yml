@@ -1,0 +1,51 @@
+name: PNID Accreditation Workflow
+
+on: [push, pull_request]
+
+jobs:
+  quality-and-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 3. Мультиверсійне тестування
+        python-version: ["3.9", "3.10", "3.11"]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    # 2. Перевірка стилю коду (Linting)
+    - name: Lint with flake8
+      run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+    # 1. Автоматичне тестування з Pytest + 5. Автоматичний HTML-звіт
+    - name: Run tests and generate HTML report
+      run: pytest --html=report.html --self-contained-html
+
+    # Завантаження звіту, щоб його можна було завантажити з інтерфейсу GitHub
+    - name: Upload Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pytest-report-${{ matrix.python-version }}
+        path: report.html
+
+  # 4. Збірка Docker-контейнера
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: quality-and-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Build Docker Image
+        run: docker build . -t pnid-app:latest
